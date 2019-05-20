@@ -1,10 +1,7 @@
 use egg_mode;
-use serde;
 use serde_derive::Deserialize;
 
 use std::collections::HashSet;
-use std::fs;
-use std::io::{BufReader, Read};
 use tokio_core::reactor::Core;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -24,7 +21,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut core = Core::new()?;
     let handle = core.handle();
 
-    let config = toml::from_str::<Config>(&fs::read_to_string("config.toml")?)?;
+    let config = toml::from_str::<Config>(&std::fs::read_to_string("config.toml")?)?;
 
     let consumer = egg_mode::KeyPair::new(config.ck, config.cs);
     let tokens = config
