@@ -1,7 +1,7 @@
 use egg_mode;
 use serde_derive::Deserialize;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tokio_core::reactor::Core;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,28 +33,41 @@ fn main() -> Result<(), Box<std::error::Error>> {
             consumer: consumer.clone(),
         })
         .collect::<Vec<_>>();
-    let mutes = tokens
+
+    let mutes_map = tokens
         .iter()
         .map(|token| {
             core.run(egg_mode::user::mutes_ids(token, &handle).call())
-                .map(|res| res.response.ids)
+                .map(|res| {
+                    (
+                        get_token_key(token),
+                        res.response.ids.into_iter().collect::<HashSet<_>>(),
+                    )
+                })
         })
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .flat_map(|x| x)
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
+        .collect::<Result<HashMap<_, _>, _>>()?;
+
+    let mutes = mutes_map
+        .iter()
+        .flat_map(|(_, x)| x.iter().cloned())
+        .collect::<HashSet<_>>();
 
     tokens
         .iter()
         .flat_map(|token| {
             mutes
-                .iter()
+                .difference(mutes_map.get(&get_token_key(token)).unwrap())
                 .map(|&id| core.run(egg_mode::user::mute(id, token, &handle)))
                 .collect::<Vec<_>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(())
+}
+
+fn get_token_key(token: &egg_mode::Token) -> String {
+    match token {
+        egg_mode::Token::Access { access, .. } => access.key.clone().into_owned(),
+        _ => unimplemented!(),
+    }
 }
